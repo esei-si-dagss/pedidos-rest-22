@@ -3,7 +3,7 @@
 
 Ejemplo de endpoints REST con Spring-MVC (implementación directa)
 
-Construido sobre proyecto [pedidos-spring-22](https://github.com/esei-si-mei/pedidos-spring-22)
+Construido sobre proyecto [pedidos-spring-22](https://github.com/esei-si-dagss/pedidos-spring-22)
 
 ## Estructura del proyecto
 El proyecto resultante sigue una organización relativamente habitual en proyectos Spring. 
