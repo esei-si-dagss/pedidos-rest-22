@@ -130,7 +130,7 @@ public class ClienteController {
 	
 	// Construye la URI del nuevo recurso creado con POST 
 	private URI crearURICliente(Cliente cliente) {
-		return ServletUriComponentsBuilder.fromCurrentRequest()
+		return ServletUriComponentsBuilder.fromCurrentRequestUri()
 		.path("/{dni}")
 		.buildAndExpand(cliente.getDNI())
 		.toUri();				

@@ -1,11 +1,14 @@
-package es.uvigo.mei.pedidos.controladores;
+package es.uvigo.mei.pedidos.controladores.hateoas;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import javax.validation.Valid;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -26,20 +29,24 @@ import es.uvigo.mei.pedidos.entidades.Articulo;
 import es.uvigo.mei.pedidos.entidades.ArticuloAlmacen;
 import es.uvigo.mei.pedidos.servicios.AlmacenService;
 import es.uvigo.mei.pedidos.servicios.ArticuloService;
+import io.swagger.v3.oas.annotations.Operation;
 
-@RestController
-@RequestMapping(path = "/api/almacenes", produces = MediaType.APPLICATION_JSON_VALUE)
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
+
 @CrossOrigin(origins = "*")
-public class AlmacenController {
+@RestController
+@RequestMapping(path = "/api/v2/almacenes", produces = MediaType.APPLICATION_JSON_VALUE)
+public class AlmacenControllerV2 {
 	@Autowired
 	AlmacenService almacenService;
 	@Autowired
 	ArticuloService articuloService;
 
+	@Operation(summary = "Recuperar el listado de Almacenes")
 	@GetMapping()
-	public ResponseEntity<List<Almacen>> buscarTodos(
+	public ResponseEntity<List<EntityModel<Almacen>>> buscarTodos(
 			@RequestParam(name = "localidad", required = false) String localidad,
-			@RequestParam(name = "articuloId", required = false) Long articuloId) {
+			@RequestParam(name = "aticuloId", required = false) Long articuloId) {
 		try {
 			List<Almacen> resultado = new ArrayList<>();
 
@@ -55,23 +62,29 @@ public class AlmacenController {
 				return new ResponseEntity<>(HttpStatus.NO_CONTENT);
 			}
 
-			return new ResponseEntity<>(resultado, HttpStatus.OK);
+			List<EntityModel<Almacen>> resultadoDTO = new ArrayList<>();
+			resultado.forEach(a -> resultadoDTO.add(crearDTOAlmacen(a)));
+
+			return new ResponseEntity<>(resultadoDTO, HttpStatus.OK);
 		} catch (Exception e) {
 			return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
+	@Operation(summary = "Recuperar datos de un Almacén")
 	@GetMapping(path = "{id}")
-	public ResponseEntity<Almacen> buscarPorId(@PathVariable("id") Long id) {
+	public ResponseEntity<EntityModel<Almacen>> buscarPorId(@PathVariable("id") Long id) {
 		Optional<Almacen> almacen = almacenService.buscarPorId(id);
 
 		if (almacen.isPresent()) {
-			return new ResponseEntity<>(almacen.get(), HttpStatus.OK);
+			EntityModel<Almacen> dto = crearDTOAlmacen(almacen.get());
+			return new ResponseEntity<>(dto, HttpStatus.OK);
 		} else {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
 	}
 
+	@Operation(summary = "Eliminar un Almacén")
 	@DeleteMapping(path = "{id}")
 	public ResponseEntity<HttpStatus> eliminar(@PathVariable("id") Long id) {
 		try {
@@ -88,25 +101,30 @@ public class AlmacenController {
 		}
 	}
 
+	@Operation(summary = "Actualizar un Almacén")
 	@PutMapping(path = "{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Almacen> modificar(@PathVariable("id") Long id, @RequestBody Almacen almacen) {
+	public ResponseEntity<EntityModel<Almacen>> modificar(@PathVariable("id") Long id,
+			@Valid @RequestBody Almacen almacen) {
 		Optional<Almacen> almacenOptional = almacenService.buscarPorId(id);
 
 		if (almacenOptional.isPresent()) {
 			Almacen nuevoAlmacen = almacenService.modificar(almacen);
-			return new ResponseEntity<>(nuevoAlmacen, HttpStatus.OK);
+			EntityModel<Almacen> dto = crearDTOAlmacen(nuevoAlmacen);
+			return new ResponseEntity<>(dto, HttpStatus.OK);
 		} else {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
 	}
 
+	@Operation(summary = "Crear un nuevo Almacén")
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Almacen> crear(@RequestBody Almacen almacen) {
+	public ResponseEntity<EntityModel<Almacen>> crear(@Valid @RequestBody Almacen almacen) {
 		try {
 			Almacen nuevoAlmacen = almacenService.crear(almacen);
+			EntityModel<Almacen> dto = crearDTOAlmacen(nuevoAlmacen);
 			URI uri = crearURIAlmacen(nuevoAlmacen);
 
-			return ResponseEntity.created(uri).body(nuevoAlmacen);
+			return ResponseEntity.created(uri).body(dto);
 		} catch (
 
 		Exception e) {
@@ -115,9 +133,9 @@ public class AlmacenController {
 	}
 
 	// GET {id}/articulos
-	// Articulos de un Almacen
+	@Operation(summary = "Recuperar los datos de Stock de todos los Artículos del Almacén indicado")
 	@GetMapping(path = "{idAlmacen}/articulos")
-	public ResponseEntity<List<ArticuloAlmacen>> buscarArticulosAlmacen(
+	public ResponseEntity<List<EntityModel<ArticuloAlmacen>>> buscarArticulosAlmacen(
 			@PathVariable("idAlmacen") Long idAlmacen) {
 		try {
 			List<ArticuloAlmacen> resultado = new ArrayList<>();
@@ -128,29 +146,33 @@ public class AlmacenController {
 				return new ResponseEntity<>(HttpStatus.NO_CONTENT);
 			}
 
-			return new ResponseEntity<>(resultado, HttpStatus.OK);
+			List<EntityModel<ArticuloAlmacen>> resultadoDTO = new ArrayList<>();
+			resultado.forEach(aa -> resultadoDTO.add(crearDTOArticuloAlmacen(aa)));
+
+			return new ResponseEntity<>(resultadoDTO, HttpStatus.OK);
 		} catch (Exception e) {
 			return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
 	// GET {id}/articulos/{id}
-	// Recuperar datos de un Articulo en el Almacén indicado
+	@Operation(summary = "Recuperar los datos de Stock de un Artículo en el Almacén indicado")
 	@GetMapping(path = "{idAlmacen}/articulos/{idArticulo}")
-	public ResponseEntity<ArticuloAlmacen> buscarArticuloAlmacenPorId(
+	public ResponseEntity<EntityModel<ArticuloAlmacen>> buscarArticuloAlmacenPorId(
 			@PathVariable("idAlmacen") Long idAlmacen, @PathVariable("idArticulo") Long idArticulo) {
 		Optional<ArticuloAlmacen> articuloAlmacen = almacenService
 				.buscarArticuloAlmacenPorArticuloIdAlmacenId(idArticulo, idAlmacen);
 
 		if (articuloAlmacen.isPresent()) {
-			return new ResponseEntity<>(articuloAlmacen.get(), HttpStatus.OK);
+			EntityModel<ArticuloAlmacen> dto = crearDTOArticuloAlmacen(articuloAlmacen.get());
+			return new ResponseEntity<>(dto, HttpStatus.OK);
 		} else {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
 	}
 
 	// GET {id}/articulos/{id}/stock
-	// Recuperar directamente el stock (como entero) de un Articulo en el Almacén indicado
+	@Operation(summary = "Recuperar directamente el stock de un Articulo en el Almacén indicado")
 	@GetMapping(path = "{idAlmacen}/articulos/{idArticulo}/stock")
 	public ResponseEntity<Integer> leerStockArticuloAlmacenPorId(
 			@PathVariable("idAlmacen") Long idAlmacen, @PathVariable("idArticulo") Long idArticulo) {
@@ -165,26 +187,26 @@ public class AlmacenController {
 	}
 	
 	// PUT {id}/articulos/{id}
-    // Actualizar los datos de Stock de un Artículo en el Almacén indicado")
+	@Operation(summary = "Actualizar los datos de Stock de un Artículo en el Almacén indicado")
 	@PutMapping(path = "{idAlmacen}/articulos/{idArticulo}")
-	public ResponseEntity<ArticuloAlmacen> modificarArticuloAlmacen(
+	public ResponseEntity<EntityModel<ArticuloAlmacen>> modificarArticuloAlmacen(
 			@PathVariable("idAlmacen") Long idAlmacen, @PathVariable("idArticulo") Long idArticulo,
-		    @RequestBody ArticuloAlmacen articuloAlmacen) {
+			@Valid @RequestBody ArticuloAlmacen articuloAlmacen) {
 		// Recuperar nuevo stock
 		Integer nuevoStock = articuloAlmacen.getStock();
 		return _modificarStockArticuloAlmacen(idAlmacen, idArticulo, nuevoStock);
 	}
 
 	// PUT {id}/articulos/{id}/stock
-	// Actualizar directamente el stock de un Articulo en el Almacén indicado
+	@Operation(summary = "Actualizar directamente el stock de un Articulo en el Almacén indicado")
 	@PutMapping(path = "{idAlmacen}/articulos/{idArticulo}/stock")
-	public ResponseEntity<ArticuloAlmacen> modificarArticuloAlmacenDirecto(
+	public ResponseEntity<EntityModel<ArticuloAlmacen>> modificarArticuloAlmacenDirecto(
 			@PathVariable("idAlmacen") Long idAlmacen, @PathVariable("idArticulo") Long idArticulo,
-		    @RequestBody Integer nuevoStock) {
+			@Valid @RequestBody Integer nuevoStock) {
 		return _modificarStockArticuloAlmacen(idAlmacen, idArticulo, nuevoStock);
 	}
 
-	private ResponseEntity<ArticuloAlmacen> _modificarStockArticuloAlmacen(Long idAlmacen, Long idArticulo,
+	private ResponseEntity<EntityModel<ArticuloAlmacen>> _modificarStockArticuloAlmacen(Long idAlmacen, Long idArticulo,
 			Integer stock) {
 		Optional<ArticuloAlmacen> articuloAlmacenOptional = almacenService
 				.buscarArticuloAlmacenPorArticuloIdAlmacenId(idArticulo, idAlmacen);
@@ -193,7 +215,8 @@ public class AlmacenController {
 			ArticuloAlmacen articuloAlmacenAModificar = articuloAlmacenOptional.get();
 			articuloAlmacenAModificar.setStock(stock);
 			ArticuloAlmacen nuevoArticuloAlmacen = almacenService.modificarArticuloAlmacen(articuloAlmacenAModificar);
-			return new ResponseEntity<>(nuevoArticuloAlmacen, HttpStatus.OK);
+			EntityModel<ArticuloAlmacen> dto = crearDTOArticuloAlmacen(nuevoArticuloAlmacen);
+			return new ResponseEntity<>(dto, HttpStatus.OK);
 		} else {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
@@ -201,7 +224,7 @@ public class AlmacenController {
 	}
 
 	// DELETE {id}/articulos/{id}
-	// Eliminar los datos de Stock de un Artículo en el Almacén indicado
+	@Operation(summary = "Eliminar los datos de Stock de un Artículo en el Almacén indicado")
 	@DeleteMapping(path = "{idAlmacen}/articulos/{idArticulo}")
 	public ResponseEntity<HttpStatus> eliminarArticuloAlmacen(@PathVariable("idAlmacen") Long idAlmacen,
 			@PathVariable("idArticulo") Long idArticulo) {
@@ -220,25 +243,25 @@ public class AlmacenController {
 	}
 
 	// POST {id}/articulos/
-	// Crear los datos de Stock de un Artículo nuevo en el Almacén indicado
+	@Operation(summary = "Crear los datos de Stock de un Artículo nuevo en el Almacén indicado")
 	@PostMapping(path = "{idAlmacen}/articulos")
-	public ResponseEntity<ArticuloAlmacen> crearArticuloAlmacen(@PathVariable("idAlmacen") Long idAlmacen,
-			@RequestBody ArticuloAlmacen articuloAlmacen) {
+	public ResponseEntity<EntityModel<ArticuloAlmacen>> crearArticuloAlmacen(@PathVariable("idAlmacen") Long idAlmacen,
+			@Valid @RequestBody ArticuloAlmacen articuloAlmacen) {
 		Long idArticulo = articuloAlmacen.getArticulo().getId();
 		Integer stock = articuloAlmacen.getStock();
 		return _crearArticuloAlmacen(idAlmacen, idArticulo, stock);
 	}
 
 	// POST {id}/articulos/{id}/stock
-	// Crear directamente el stock de un Articulo nuevo en el Almacén indicado
+	@Operation(summary = "Crear directamente el stock de un Articulo nuevo en el Almacén indicado")
 	@PostMapping(path = "{idAlmacen}/articulos/{idArticulo}/stock")
-	public ResponseEntity<ArticuloAlmacen> crearArticuloAlmacenDirecto(
+	public ResponseEntity<EntityModel<ArticuloAlmacen>> crearArticuloAlmacenDirecto(
 			@PathVariable("idAlmacen") Long idAlmacen, @PathVariable("idArticulo") Long idArticulo,
-			@RequestBody Integer stock) {
+			@Valid @RequestBody Integer stock) {
 		return _crearArticuloAlmacen(idAlmacen, idArticulo, stock);
 	}
 
-	private ResponseEntity<ArticuloAlmacen> _crearArticuloAlmacen(Long idAlmacen, Long idArticulo,
+	private ResponseEntity<EntityModel<ArticuloAlmacen>> _crearArticuloAlmacen(Long idAlmacen, Long idArticulo,
 			Integer stock) {
 		try {
 			Optional<ArticuloAlmacen> articuloAlmacenOptional = almacenService
@@ -250,9 +273,10 @@ public class AlmacenController {
 				if ((almacen.isPresent()) && (articulo.isPresent())) {
 					ArticuloAlmacen nuevoArticuloAlmacen = almacenService.crearArticuloAlmacen(articulo.get(),
 							almacen.get(), stock);
+					EntityModel<ArticuloAlmacen> dto = crearDTOArticuloAlmacen(nuevoArticuloAlmacen);
 					URI uri = crearURIArticuloAlmacen(nuevoArticuloAlmacen);
 
-					return ResponseEntity.created(uri).body(nuevoArticuloAlmacen);
+					return ResponseEntity.created(uri).body(dto);
 				} else {
 					return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 				}
@@ -267,17 +291,38 @@ public class AlmacenController {
 
 	}
 
+	// Crear los DTO con enlaces HATEOAS
+	private EntityModel<Almacen> crearDTOAlmacen(Almacen almacen) {
+		Long id = almacen.getId();
+		EntityModel<Almacen> dto = EntityModel.of(almacen);
+		dto.add(linkTo(methodOn(AlmacenControllerV2.class).buscarPorId(id)).withSelfRel());
+		dto.add(linkTo(methodOn(AlmacenControllerV2.class).buscarArticulosAlmacen(id)).withRel("articulos"));
+		return dto;
+	}
 
 	// Construye la URI del nuevo recurso creado con POST
 	private URI crearURIAlmacen(Almacen almacen) {
 		return ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}").buildAndExpand(almacen.getId()).toUri();
 	}
 
+	// Crear los DTO con enlaces HATEOAS
+	private EntityModel<ArticuloAlmacen> crearDTOArticuloAlmacen(ArticuloAlmacen articuloAlmacen) {
+		Long idAlmacen = articuloAlmacen.getAlmacen().getId();
+		Long idArticulo = articuloAlmacen.getArticulo().getId();
+
+		EntityModel<ArticuloAlmacen> dto = EntityModel.of(articuloAlmacen);
+		dto.add(linkTo(methodOn(AlmacenControllerV2.class).buscarArticuloAlmacenPorId(idAlmacen, idArticulo)).withRel("self"));
+		dto.add(linkTo(methodOn(AlmacenControllerV2.class).buscarPorId(idAlmacen)).withRel("almacen"));
+		dto.add(linkTo(methodOn(ArticuloControllerV2.class).buscarPorId(idArticulo)).withRel("articulo"));
+		return dto;
+	}
 
 	// Construye la URI del nuevo recurso creado con POST
 	private URI crearURIArticuloAlmacen(ArticuloAlmacen articuloAlmacen) {
 		Long idArticulo = articuloAlmacen.getArticulo().getId();
-		return ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}").buildAndExpand(idArticulo).toUri();
+		return ServletUriComponentsBuilder.fromCurrentRequestUri()
+		        .path("/{idArticulo}")
+				.buildAndExpand(idArticulo).toUri();
 	}
 
 }

@@ -1,12 +1,15 @@
-package es.uvigo.mei.pedidos.controladores;
+package es.uvigo.mei.pedidos.controladores.hateoas;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -25,15 +28,18 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import es.uvigo.mei.pedidos.entidades.Familia;
 import es.uvigo.mei.pedidos.servicios.ArticuloService;
 
-@RestController
-@RequestMapping(path = "/api/familias", produces = MediaType.APPLICATION_JSON_VALUE)
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
+
 @CrossOrigin(origins = "*")
-public class FamiliaController {
+@RestController
+@RequestMapping(path = "/api/v2/familias", produces = MediaType.APPLICATION_JSON_VALUE)
+public class FamiliaControllerV2 {
 	@Autowired
 	ArticuloService articuloService;
 
 	@GetMapping()
-	public ResponseEntity<List<Familia>> buscarTodos(
+	public ResponseEntity<List<EntityModel<Familia>>> buscarTodos(
 			@RequestParam(name = "descripcion", required = false) String descripcion) {
 		try {
 			List<Familia> resultado = new ArrayList<>();
@@ -48,18 +54,22 @@ public class FamiliaController {
 				return new ResponseEntity<>(HttpStatus.NO_CONTENT);
 			}
 
-			return new ResponseEntity<>(resultado, HttpStatus.OK);
+			List<EntityModel<Familia>> resultadoDTO = new ArrayList<>();
+			resultado.forEach(f -> resultadoDTO.add(crearDTOFamilia(f)));
+
+			return new ResponseEntity<>(resultadoDTO, HttpStatus.OK);
 		} catch (Exception e) {
 			return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
 	@GetMapping(path = "{id}")
-	public ResponseEntity<Familia> buscarPorId(@PathVariable("id") Long id) {
+	public ResponseEntity<EntityModel<Familia>> buscarPorId(@PathVariable("id") Long id) {
 		Optional<Familia> familia = articuloService.buscarFamiliaPorId(id);
 
 		if (familia.isPresent()) {
-			return new ResponseEntity<>(familia.get(), HttpStatus.OK);
+			EntityModel<Familia> dto = crearDTOFamilia(familia.get());
+			return new ResponseEntity<>(dto, HttpStatus.OK);
 		} else {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
@@ -82,29 +92,42 @@ public class FamiliaController {
 	}
 
 	@PutMapping(path = "{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Familia> modificar(@PathVariable("id") Long id, @RequestBody Familia familia) {
+	public ResponseEntity<EntityModel<Familia>> modificar(@PathVariable("id") Long id,
+			@Valid @RequestBody Familia familia) {
 		Optional<Familia> familiaOptional = articuloService.buscarFamiliaPorId(id);
 
 		if (familiaOptional.isPresent()) {
 			Familia nuevaFamilia = articuloService.modificarFamilia(familia);
-			return new ResponseEntity<>(nuevaFamilia, HttpStatus.OK);
+			EntityModel<Familia> dto = crearDTOFamilia(nuevaFamilia);
+			return new ResponseEntity<>(dto, HttpStatus.OK);
 		} else {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
 	}
 
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Familia> crear(@RequestBody Familia familia) {
+	public ResponseEntity<EntityModel<Familia>> crear(@Valid @RequestBody Familia familia) {
 		try {
 			Familia nuevaFamilia = articuloService.crearFamilia(familia);
+			EntityModel<Familia> dto = crearDTOFamilia(nuevaFamilia);
 			URI uri = crearURIFamilia(nuevaFamilia);
 
-			return ResponseEntity.created(uri).body(nuevaFamilia);
+			return ResponseEntity.created(uri).body(dto);
 		} catch (
 
 		Exception e) {
 			return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
+	}
+
+	// Crear los DTO con enlaces HATEOAS
+	private EntityModel<Familia> crearDTOFamilia(Familia familia) {
+		Long id = familia.getId();
+		EntityModel<Familia> dto = EntityModel.of(familia);
+		Link link = linkTo(methodOn(FamiliaControllerV2.class).buscarPorId(id)).withSelfRel();
+
+		dto.add(link);
+		return dto;
 	}
 
 	// Construye la URI del nuevo recurso creado con POST
